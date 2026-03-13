@@ -3,9 +3,10 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { amount, itemId, itemName } = req.body;
+  const { amount, myEarning, itemId, itemName } = req.body;
+  const chargeAmount = amount || myEarning;
 
-  if (!amount || !itemId) {
+  if (!chargeAmount || !itemId) {
     return res.status(400).json({ error: "Missing amount or itemId" });
   }
 
@@ -44,7 +45,7 @@ export default async function handler(req, res) {
           {
             amount: {
               currency_code: "USD",
-              value: parseFloat(amount).toFixed(2),
+              value: parseFloat(chargeAmount).toFixed(2),
             },
             description: `PriceDrop fee for: ${itemName || "price refund"}`,
             custom_id: itemId,
