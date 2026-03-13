@@ -1,39 +1,82 @@
-import Stripe from "stripe";
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { itemName, refundAmount, myEarning, itemId, userId } = req.body;
+  const { amount, myEarning, itemId, itemName } = req.body;
+  const chargeAmount = amount || myEarning;
+
+  if (!chargeAmount || !itemId) {
+    return res.status(400).json({ error: "Missing amount or itemId" });
+  }
 
   try {
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
-      mode: "payment",
-      line_items: [
-        {
-          price_data: {
-            currency: "usd",
-            product_data: {
-              name: `PriceDrop Fee — ${itemName}`,
-              description: `You get $${(refundAmount - myEarning).toFixed(2)} back from the store. PriceDrop keeps $${myEarning.toFixed(2)} (25%).`,
-            },
-            unit_amount: Math.round(myEarning * 100), // in cents
-          },
-          quantity: 1,
-        },
-      ],
-      metadata: { itemId, userId },
-      success_url: `${req.headers.origin}?payment=success&item=${itemId}`,
-      cancel_url: `${req.headers.origin}?payment=cancelled`,
+    // Get PayPal access token
+    const authResponse = await fetch("https://api-m.paypal.com/v1/oauth2/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Authorization: `Basic ${Buffer.from(
+          `${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_SECRET}`
+        ).toString("base64")}`,
+      },
+      body: "grant_type=client_credentials",
     });
 
-    res.status(200).json({ url: session.url });
+    const authData = await authResponse.json();
+    const accessToken = authData.access_token;
+
+    if (!accessToken) {
+      return res.status(500).json({ error: "Failed to get PayPal access token" });
+    }
+
+    const origin = req.headers.origin || "https://pricedrop-goq6.vercel.app";
+
+    // Create PayPal order
+    const orderResponse = await fetch("https://api-m.paypal.com/v2/checkout/orders", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        intent: "CAPTURE",
+        purchase_units: [
+          {
+            amount: {
+              currency_code: "USD",
+              value: parseFloat(chargeAmount).toFixed(2),
+            },
+            description: `PriceDrop fee for: ${itemName || "price refund"}`,
+            custom_id: itemId,
+          },
+        ],
+        application_context: {
+          return_url: `${origin}?payment=success&item=${itemId}`,
+          cancel_url: `${origin}?payment=cancelled`,
+          brand_name: "PriceDrop",
+          landing_page: "BILLING",
+          user_action: "PAY_NOW",
+        },
+      }),
+    });
+
+    const orderData = await orderResponse.json();
+
+    if (!orderData.id) {
+      return res.status(500).json({ error: "Failed to create PayPal order", details: orderData });
+    }
+
+    // Find the approval URL
+    const approvalUrl = orderData.links?.find((l) => l.rel === "approve")?.href;
+
+    if (!approvalUrl) {
+      return res.status(500).json({ error: "No approval URL from PayPal" });
+    }
+
+    return res.status(200).json({ url: approvalUrl });
   } catch (err) {
-    console.error("Stripe error:", err);
-    res.status(500).json({ error: err.message });
+    console.error("PayPal error:", err);
+    return res.status(500).json({ error: err.message });
   }
 }
