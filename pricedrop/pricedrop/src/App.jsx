@@ -321,7 +321,7 @@ function App() {
 
   useEffect(()=>{
     loadItems();
-    // Handle Stripe success redirect
+    // Handle PayPal success redirect
     const params = new URLSearchParams(window.location.search);
     if(params.get("success")==="true") {
       const itemId = params.get("itemId");
@@ -358,7 +358,7 @@ function App() {
 
   async function claimRefund(id) {
     const item=items.find(i=>i.id===id);
-    showToast("⏳ Opening payment…");
+    showToast("⏳ Opening PayPal…");
     try {
       const res = await fetch("/api/create-checkout", {
         method:"POST",
@@ -367,7 +367,7 @@ function App() {
       });
       const data = await res.json();
       if(data.url) { window.location.href = data.url; return; }
-      showToast("❌ Payment error: "+data.error);
+      showToast("❌ Payment error: "+(data.error||"Unknown error"));
     } catch(e) { showToast("❌ "+e.message); }
   }
 
@@ -492,7 +492,7 @@ function App() {
       <h1 style={{fontFamily:"var(--serif)",fontSize:28,fontWeight:800,letterSpacing:"-0.03em",marginBottom:4}}>How It Works</h1>
       <p style={{color:"var(--muted)",fontSize:13,marginBottom:32}}>Simple. Automatic. You make money.</p>
       <div style={{display:"flex",flexDirection:"column",gap:14}}>
-        {[{n:"01",title:"Forward your receipt",desc:"After buying online, forward the order confirmation email to track@pricedrop.app",icon:"📧",color:"var(--blue)"},{n:"02",title:"We watch the price 24/7",desc:"PriceDrop checks the price every hour across 50+ major stores.",icon:"◎",color:"var(--purple)"},{n:"03",title:"Price drops → instant alert",desc:"When a drop is found within your refund window, you get notified immediately.",icon:"🔔",color:"var(--gold)"},{n:"04",title:"Claim in one click",desc:"Hit Claim and we file the refund request. Most stores respond in 24–48 hours.",icon:"↩",color:"var(--green)"},{n:"05",title:"75% yours, 25% ours",desc:"The refund hits your account. PriceDrop takes 25% via Stripe. Zero upfront cost.",icon:"$",color:"var(--green)"}].map((step,i)=>(
+        {[{n:"01",title:"Forward your receipt",desc:"After buying online, forward the order confirmation email to track@pricedrop.app",icon:"📧",color:"var(--blue)"},{n:"02",title:"We watch the price 24/7",desc:"PriceDrop checks the price every hour across 50+ major stores.",icon:"◎",color:"var(--purple)"},{n:"03",title:"Price drops → instant alert",desc:"When a drop is found within your refund window, you get notified immediately.",icon:"🔔",color:"var(--gold)"},{n:"04",title:"Claim in one click",desc:"Hit Claim and we file the refund request. Most stores respond in 24–48 hours.",icon:"↩",color:"var(--green)"},{n:"05",title:"75% yours, 25% ours",desc:"The refund hits your account. PriceDrop takes 25% via PayPal. Zero upfront cost.",icon:"$",color:"var(--green)"}].map((step,i)=>(
           <div key={i} className="card" style={{padding:"22px 26px",display:"flex",gap:18,alignItems:"flex-start"}}>
             <div style={{width:46,height:46,borderRadius:12,background:`${step.color}18`,border:`1px solid ${step.color}30`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{step.icon}</div>
             <div><div style={{fontSize:10,fontFamily:"var(--mono)",color:"var(--muted)",marginBottom:3,letterSpacing:"0.08em"}}>STEP {step.n}</div><div style={{fontFamily:"var(--serif)",fontSize:16,fontWeight:700,marginBottom:5,color:step.color}}>{step.title}</div><div style={{fontSize:13,color:"var(--muted2)",lineHeight:1.7}}>{step.desc}</div></div>
